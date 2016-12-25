@@ -1,48 +1,57 @@
+// the weights we are gonna use for each feature
+const W: Weights = {
+    children: 100,
+    childrenLength: 50,
+    siblingsLength: 1,
+    node: 1 / 10,
+    parent: 1 / 10,
+    attributes: 100,
+    attributesLength: 50,
+    width: 50,
+    height: 50
+};
+
 // now the cosine similarity of 2 feature vectors
-function cosineSimilarity(a: FeatureVector, b: FeatureVector) {
-    return dotProduct(a, b) / (norm(a) * norm(b));
+function cosineSimilarity(a: FeatureVector, b: FeatureVector, w: Weights) {
+    return dotProduct(a, b, w) / (norm(a, w) * norm(b, w));
 }
 
 // standard definition of norm in terms of an inner product
-function norm(featureVector: FeatureVector) {
-    let squaredNorm = dotProduct(featureVector, featureVector);
+function norm(featureVector: FeatureVector, w: Weights) {
+    const squaredNorm = dotProduct(featureVector, featureVector, w);
     return Math.sqrt(squaredNorm);
 }
 
-// just pointwise products of features
-function dotProduct(a: FeatureVector, b: FeatureVector) {
+// just pointwise products of features multiplied by the weights
+function dotProduct(a: FeatureVector, b: FeatureVector, w: Weights) {
     // some helper functions
-    let pm = (a: any, b: any) => a === b ? 1 : 0; // (p)rimitive (m)atcher
-    let wm = <T>(a: WeightedFeature<T>, b: WeightedFeature<T>) => { // (w)eighted (m)atcher
-        if (a.w != b.w) { throw "Can not compare features with different weights!"; }
-        return a.f === b.f ? a.w : 0;
-    };
-    let wp = <T>(a: WeightedFeature<T>, b: WeightedFeature<T>) => a.w * wm(a, b); // (w)eighted (p)roduct
-    let wpp = (w: number, a: any, b: any) => w * pm(a, b); // (w)eighted (p)rimitive (p)roduct
+    const pm = (a: any, b: any) => a === b ? 1 : 0; // (p)rimitive (m)atcher
+    const wpp = (w: number, a: any, b: any) => w * pm(a, b); // (w)eighted (p)rimitive (p)roduct
     // first the array dot products for children
     let childrenSum = 0;
-    let childIterationLength = Math.min(a.childrenLength.f, b.childrenLength.f);
+    const childIterationLength = Math.min(a.childrenLength, b.childrenLength);
     for (let index = 0; index < childIterationLength; index++) {
-        childrenSum += wpp(a.children.w, a.children.f[index], b.children.f[index]);
+        childrenSum += wpp(1, a.children[index], b.children[index]);
     }
+    childrenSum = w.children * childrenSum;
     // now the dot product for attributes
-    let attributeIterationLength = Math.min(a.attributesLength.f, b.attributesLength.f);
+    const attributeIterationLength = Math.min(a.attributesLength, b.attributesLength);
     let attributeSum = 0;
     for (let index = 0; index < attributeIterationLength; index++) {
-        attributeSum += wpp(a.attributes.w, a.attributes.f[index], b.attributes.f[index]);
+        attributeSum += wpp(1, a.attributes[index], b.attributes[index]);
     }
-    // now the other components of the dot product, making it string indexable because 
-    // i want to iterate over the keys
-    let dotProductComponents: DotProductComponents = {
+    attributeSum = w.attributes * attributeSum;
+    // now the other components of the dot product
+    const dotProductComponents: DotProductComponents = {
         attributes: attributeSum,
         children: childrenSum,
-        childrenLength: wp(a.childrenLength, b.childrenLength),
-        parent: wp(a.parent, b.parent),
-        node: wp(a.node, b.node),
-        siblingsLength: wp(a.siblingsLength, b.siblingsLength),
-        attributesLength: wp(a.attributesLength, b.attributesLength),
-        width: wp(a.width, b.width),
-        height: wp(a.height, b.height)
+        childrenLength: wpp(w.childrenLength, a.childrenLength, b.childrenLength),
+        parent: wpp(w.parent, a.parent, b.parent),
+        node: wpp(w.node, a.node, b.node),
+        siblingsLength: wpp(w.siblingsLength, a.siblingsLength, b.siblingsLength),
+        attributesLength: wpp(w.attributesLength, a.attributesLength, b.attributesLength),
+        width: wpp(w.width, a.width, b.width),
+        height: wpp(w.height, a.height, b.height)
     };
     // now index over the keys and add them up
     let sum = 0;
@@ -54,50 +63,49 @@ function dotProduct(a: FeatureVector, b: FeatureVector) {
 
 // map a DOM element to its features
 function extractFeatures(node : HTMLElement): FeatureVector {
-    let wf = <T>(f: T, w: number): WeightedFeature<T> => { return {f: f, w: w} }; // (w)eighted (f)eature
     // we are going to use the name to find all the nodes with same name
-    let name = node.nodeName;
+    const name = node.nodeName;
     // first we iterate over the child nodes and add their names to a list
-    let children: Array<string> = [];
+    const children: Array<string> = [];
     // NodeList can not be converted to array so must bypass typechecking by casting to any
-    let childNodes: Array<HTMLElement> = node.childNodes as any;
+    const childNodes: Array<HTMLElement> = node.childNodes as any;
     for (let child of childNodes) {
         children.push(child.nodeName);
     }
     // casting to avoid strict null check since it is not possible when comparing
     // elements inside the html body element
-    let parent = node.parentElement as HTMLElement;
-    let siblingsLength = parent.childNodes.length;
-    let attributes: Array<string> = [];
+    const parent = node.parentElement as HTMLElement;
+    const siblingsLength = parent.childNodes.length;
+    const attributes: Array<string> = [];
     for (let attribute in node.attributes) {
-        let name = node.attributes[attribute].name;
-        let value = node.attributes[attribute].value;
+        const name = node.attributes[attribute].name;
+        const value = node.attributes[attribute].value;
         if (value === undefined) { continue; }
         attributes.push(name);
         attributes.push(value);
     }
     return {
-        children: wf(children, 100),
-        childrenLength: wf(children.length, 100),
-        siblingsLength: wf(siblingsLength, 1),
-        node: wf(name, 1 / 10),
-        parent: wf(parent.nodeName, 1 / 10),
-        attributes: wf(attributes, 100),
-        attributesLength: wf(attributes.length, 10),
-        width: wf(node.offsetWidth, 20),
-        height: wf(node.offsetHeight, 20)
+        children: children,
+        childrenLength: children.length,
+        siblingsLength: siblingsLength,
+        node: name,
+        parent: parent.nodeName,
+        attributes: attributes,
+        attributesLength: attributes.length,
+        width: node.offsetWidth,
+        height: node.offsetHeight
     };
 }
 
 // common set of transformations when trying to find matches for an element
 function matcher(anchor: HTMLElement) {
-    let anchorFeatures = extractFeatures(anchor);
-    let matches: Array<HTMLElement> = Array.prototype.slice.call(
-        document.querySelectorAll(anchorFeatures.node.f));
-    let results = matches.map(element => {
-        let elementFeatures = extractFeatures(element);
-        let similarity = cosineSimilarity(anchorFeatures, elementFeatures);
-        return [element, similarity];
+    const anchorFeatures = extractFeatures(anchor);
+    const matches: Array<HTMLElement> = Array.prototype.slice.call(
+        document.querySelectorAll(anchorFeatures.node));
+    const results = matches.map(element => {
+        const elementFeatures = extractFeatures(element);
+        const similarity = cosineSimilarity(anchorFeatures, elementFeatures, W);
+        return [element, similarity] as [HTMLElement, number];
     });
     return results;
 }
@@ -105,16 +113,16 @@ function matcher(anchor: HTMLElement) {
 // demonstration for HN
 function hn() {
     // assuming this is the first item on HN front page we are interested in
-    let anchorNode = document.querySelectorAll('tr.athing')[0] as HTMLElement;
-    let results = matcher(anchorNode);
-    let filteredResults = results.filter(pair => pair[1] > 0.9)
+    const anchorNode = document.querySelectorAll('tr.athing')[0] as HTMLElement;
+    const results = matcher(anchorNode);
+    const filteredResults = results.filter(pair => pair[1] > 0.9)
     return filteredResults;
 }
 
 // demonstration for reddit
 function reddit() {
-    let anchorNode = document.querySelectorAll('div.entry')[1] as HTMLElement;
-    let results = matcher(anchorNode);
-    let filteredResults = results.filter(pair => pair[1] > 0.9)
+    const anchorNode = document.querySelectorAll('div.entry')[1] as HTMLElement;
+    const results = matcher(anchorNode);
+    const filteredResults = results.filter(pair => pair[1] > 0.9)
     return filteredResults;
 }
