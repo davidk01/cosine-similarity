@@ -15,6 +15,7 @@
     "sourceMap": true
   },
   "include": [
-    "lib/**/*"
+    "lib/**/*",
+    "declarations/**/*"
   ]
 }

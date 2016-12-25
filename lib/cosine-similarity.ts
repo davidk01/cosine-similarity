@@ -1,34 +1,3 @@
-// instead of keeping the weights in the dot product we
-// can track the weight of each feature alongside the feature
-interface WeightedFeature<T> {
-    readonly f: T; // (f)eature
-    readonly w: number; // (w)eight
-}
-
-// our feature vector which we are going to use to do the cosine similarity calculation
-interface FeatureVector {
-    readonly children: WeightedFeature<Array<string>>;
-    readonly childrenLength: WeightedFeature<number>;
-    readonly siblingsLength: WeightedFeature<number>;
-    readonly parent: WeightedFeature<string>;
-    readonly node: WeightedFeature<string>;
-    readonly width: WeightedFeature<number>;
-    readonly height: WeightedFeature<number>;
-    readonly attributes: WeightedFeature<Array<string>>;
-    readonly attributesLength: WeightedFeature<number>;
-}
-
-// required when we are iterating over the partial dot product
-// components to get the final sum
-interface StringToNumber {
-    [index: string]: number;
-}
-
-// mapped types are pretty awesome
-type DotProductComponents = {
-    readonly [P in keyof FeatureVector]: number;
-}
-
 // now the cosine similarity of 2 feature vectors
 function cosineSimilarity(a: FeatureVector, b: FeatureVector) {
     return dotProduct(a, b) / (norm(a) * norm(b));
@@ -64,7 +33,7 @@ function dotProduct(a: FeatureVector, b: FeatureVector) {
     }
     // now the other components of the dot product, making it string indexable because 
     // i want to iterate over the keys
-    let dotProductComponents: DotProductComponents & StringToNumber = {
+    let dotProductComponents: DotProductComponents = {
         attributes: attributeSum,
         children: childrenSum,
         childrenLength: wp(a.childrenLength, b.childrenLength),
