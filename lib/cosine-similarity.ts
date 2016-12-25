@@ -1,8 +1,8 @@
 // instead of keeping the weights in the dot product we
 // can track the weight of each feature alongside the feature
 interface WeightedFeature<T> {
-    readonly f: T;
-    readonly w: number;
+    readonly f: T; // (f)eature
+    readonly w: number; // (w)eight
 }
 
 // our feature vector which we are going to use to do the cosine similarity calculation
